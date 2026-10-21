@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>エンジニアタイプ診断</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+/* Layout: 一枚の「ターミナル付き仕様書」。上に診断、下に16タイプ一覧。タイプコードは等幅のバッジで扱う */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --ink: #16211f;
+  --muted: #5c6a67;
+  --line: #d5dddb;
+  --teal: #0f7a6c;
+  --teal-soft: #dcefeb;
+  --amber: #c9781a;
+  --amber-soft: #f7ead8;
+  --f-display: "Dela Gothic One", "Hiragino Kaku Gothic StdN", "Yu Gothic", sans-serif;
+  --f-body: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101716; --surface: #182220; --ink: #e6eeec; --muted: #94a5a1; --line: #2c3a37;
+    --teal: #4fc7b4; --teal-soft: #173a35; --amber: #eaa54c; --amber-soft: #3a2b17; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101716; --surface: #182220; --ink: #e6eeec; --muted: #94a5a1; --line: #2c3a37;
+  --teal: #4fc7b4; --teal-soft: #173a35; --amber: #eaa54c; --amber-soft: #3a2b17; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.3; }
+.mono { font-family: var(--f-mono); }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--teal); }
+
+/* Hero */
+.hero { display: grid; gap: 16px; }
+.hero h1 { font-size: clamp(32px, 7vw, 56px); }
+.hero h1 .code { color: var(--teal); }
+.hero p { margin: 0; max-width: 60ch; color: var(--muted); }
+.axes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.axis { background: var(--surface); padding: 14px 16px; display: grid; gap: 4px; }
+.axis .k { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.axis .v { font-weight: 700; font-size: 15px; }
+.axis .v b { font-family: var(--f-mono); color: var(--teal); }
+.axis .v i { font-style: normal; font-family: var(--f-mono); color: var(--amber); font-weight: 700; }
+
+/* Quiz */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-family: var(--f-mono); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.dots { display: flex; gap: 6px; }
+.dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.progress { height: 3px; background: var(--line); }
+.progress div { height: 100%; width: 0; background: var(--teal); transition: width .3s ease; }
+.panel-body { padding: 28px clamp(16px, 4vw, 36px) 32px; display: grid; gap: 20px; }
+.q-num { font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
+.q-text { font-size: clamp(19px, 3.4vw, 24px); font-weight: 700; line-height: 1.5; text-wrap: balance; margin: 0; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .choices { grid-template-columns: 1fr; } }
+.choice {
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer; background: var(--bg);
+  border: 1.5px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 6px; min-width: 0;
+  transition: border-color .15s, background .15s, transform .15s;
+}
+.choice .tag { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.choice:hover { border-color: var(--teal); background: var(--teal-soft); }
+.choice:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.choice.picked { border-color: var(--teal); background: var(--teal-soft); }
+.q-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn {
+  font: inherit; font-weight: 700; cursor: pointer; border-radius: 6px; padding: 10px 18px; border: 1.5px solid var(--ink);
+  background: var(--ink); color: var(--bg);
+}
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); font-weight: 500; }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.start { display: grid; gap: 16px; justify-items: start; }
+.start p { margin: 0; color: var(--muted); }
+.prompt { font-family: var(--f-mono); font-size: 14px; color: var(--muted); }
+.prompt b { color: var(--teal); font-weight: 600; }
+
+/* Result */
+.result { display: grid; gap: 24px; }
+.r-top { display: grid; gap: 8px; }
+.r-code { font-family: var(--f-mono); font-weight: 700; font-size: clamp(36px, 9vw, 64px); letter-spacing: .08em; color: var(--teal); line-height: 1.1; }
+.r-name { font-size: clamp(26px, 5vw, 38px); }
+.r-tag { color: var(--muted); margin: 0; }
+.bars { display: grid; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 7em 1fr 7em; gap: 10px; align-items: center; font-size: 14px; }
+.bar-row .l { text-align: right; }
+.bar-row .on { font-weight: 700; color: var(--ink); }
+.bar-row .off { color: var(--muted); }
+.track { height: 10px; border-radius: 5px; background: var(--amber-soft); position: relative; overflow: hidden; }
+.track div { position: absolute; inset: 0 auto 0 0; background: var(--teal); border-radius: 5px 0 0 5px; transition: width .6s ease; }
+.track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--surface); }
+@media (max-width: 480px) { .bar-row { grid-template-columns: 5.5em 1fr 5.5em; font-size: 12px; } }
+.r-desc { margin: 0; max-width: 62ch; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 560px) { .cols { grid-template-columns: 1fr; } }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.box h3 { font-family: var(--f-mono); font-weight: 600; font-size: 13px; letter-spacing: .08em; margin-bottom: 6px; }
+.box.good h3 { color: var(--teal); }
+.box.warn h3 { color: var(--amber); }
+.box ul { margin: 0; padding-left: 1.2em; }
+.match { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.chip { font-family: var(--f-mono); font-weight: 700; font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--teal-soft); color: var(--teal); border: 0; cursor: pointer; }
+.chip:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.copied { font-size: 13px; color: var(--teal); align-self: center; }
+.share-text { width: 100%; font-family: var(--f-mono); font-size: 13px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); resize: none; }
+
+/* Types grid */
+.types h2 { font-size: clamp(22px, 4vw, 30px); margin-bottom: 6px; }
+.types > p { margin: 0 0 20px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 760px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+.tcard {
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; display: grid; gap: 2px; align-content: start; min-width: 0;
+}
+.tcard:hover { border-color: var(--teal); }
+.tcard:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.tcard.mine { border-color: var(--teal); background: var(--teal-soft); }
+.tcard .c { font-family: var(--f-mono); font-weight: 700; font-size: 14px; letter-spacing: .06em; color: var(--teal); }
+.tcard .n { font-weight: 700; font-size: 14px; line-height: 1.45; }
+.group-label { grid-column: 1 / -1; font-family: var(--f-mono); font-size: 12px; color: var(--muted); letter-spacing: .08em; margin-top: 8px; }
+footer { color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">engineer-type v1.0 · 12 questions · 16 types</div>
+    <h1>あなたは<span class="code">どの</span>エンジニア？</h1>
+    <p>12問の二択に答えると、4つの軸からあなたの開発スタイルを16タイプに分類します。正解はありません。普段の自分に近いほうを選んでください。</p>
+    <div class="axes" aria-label="4つの診断軸">
+      <div class="axis"><span class="k">AXIS 1 · 進め方</span><span class="v"><b>E</b> 探索 / <i>P</i> 設計</span></div>
+      <div class="axis"><span class="k">AXIS 2 · 関心</span><span class="v"><b>U</b> ユーザー / <i>S</i> システム</span></div>
+      <div class="axis"><span class="k">AXIS 3 · 働き方</span><span class="v"><b>A</b> ソロ / <i>T</i> チーム</span></div>
+      <div class="axis"><span class="k">AXIS 4 · 技術観</span><span class="v"><b>N</b> 新技術 / <i>R</i> 枯れた技術</span></div>
+    </div>
+  </header>
+
+  <section class="panel" aria-live="polite">
+    <div class="panel-head">
+      <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <span id="status">~/diagnosis $ ready</span>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="panel-body" id="stage"></div>
+  </section>
+
+  <section class="types">
+    <h2>16タイプ一覧</h2>
+    <p>タイプをタップすると詳細が見られます。</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <footer>結果はこのブラウザにだけ保存されます。</footer>
+</div>
+
+<script>
+const AX = [
+  { a: "E", b: "P", an: "探索", bn: "設計" },
+  { a: "U", b: "S", an: "ユーザー", bn: "システム" },
+  { a: "A", b: "T", an: "ソロ", bn: "チーム" },
+  { a: "N", b: "R", an: "新技術", bn: "枯れた技術" },
+];
+
+const QS = [
+  { x: 0, q: "初めて触るAPI。まず何をする？", a: "とりあえず叩いてレスポンスを見る", b: "ドキュメントを一通り読む" },
+  { x: 0, q: "新機能の実装、最初の一手は？", a: "動くものを作ってから整える", b: "設計メモを書いて固めてから書く" },
+  { x: 0, q: "原因不明のバグ。どう攻める？", a: "思いつく仮説を片っ端から試す", b: "ログと再現手順を整理してから絞り込む" },
+  { x: 1, q: "一番うれしい瞬間は？", a: "ユーザーに「便利になった」と言われた", b: "p99レイテンシが半分になった" },
+  { x: 1, q: "つい読んでしまう技術記事は？", a: "プロダクト開発やUX改善の事例", b: "内部実装やアルゴリズムの解説" },
+  { x: 1, q: "仕様の議論で気になるのは？", a: "誰がどんな場面で使うのか", b: "どう作れば壊れにくいか" },
+  { x: 2, q: "一番集中できる環境は？", a: "ヘッドホンをして一人で黙々と", b: "ペアプロやモブで声を出しながら" },
+  { x: 2, q: "1時間詰まったらどうする？", a: "自分で掘り抜くまで粘る", b: "Slackで誰かに相談する" },
+  { x: 2, q: "理想の担当範囲は？", a: "一つの機能を最初から最後まで任される", b: "みんなで分担して大きなものを出す" },
+  { x: 3, q: "話題の新フレームワークが出た。", a: "週末にさっそく触ってみる", b: "半年くらい様子を見る" },
+  { x: 3, q: "技術選定で重視するのは？", a: "面白さと将来性", b: "実績と情報の多さ" },
+  { x: 3, q: "「ベータ版のツールを本番で使おう」と言われたら？", a: "ちょっとワクワクする", b: "理由をじっくり聞きたい" },
+];
+
+const T = {
+  EUAN: ["突撃プロトタイパー", "思いついたら今夜デモを作る", "アイデアを形にするまでが圧倒的に速いタイプ。新しいツールを使って、ユーザーが驚く体験を一人で組み上げます。個人開発やハッカソンで真価を発揮します。", ["0→1の速さ", "新技術のキャッチアップ", "ユーザー視点のデモ力"], ["作りかけのリポジトリが増えがち", "保守フェーズで飽きやすい"]],
+  EUAR: ["ひとりプロダクト屋", "慣れた道具で、毎週なにかを出す", "使い慣れたスタックで素早く価値を届けるタイプ。流行より「今日ユーザーが困っていること」を優先し、小さな改善を積み重ねます。", ["実用的なスピード", "迷わない技術選定", "ユーザーの声への反応"], ["技術負債を後回しにしがち", "知見を自分の中に溜め込みやすい"]],
+  EUTN: ["ハッカソンの旗振り役", "面白いことは、みんなでやると速い", "新しいアイデアにチームを巻き込むのが得意なタイプ。試作を素早く見せて議論を前に進め、周りの熱量を上げます。", ["巻き込み力", "企画と実装の橋渡し", "新しい試みへの行動力"], ["詰めの品質が甘くなりやすい", "やることを広げすぎる"]],
+  EUTR: ["グロース実装隊長", "数字が動く施策を、確実に回す", "A/Bテストや改善サイクルをチームで高速に回すタイプ。堅い技術の上で仮説検証を繰り返し、プロダクトを着実に伸ばします。", ["仮説検証の回転数", "チームの推進力", "事業へのインパクト"], ["根本的な作り直しを避けがち", "短期指標に寄りやすい"]],
+  ESAN: ["技術探検家", "まだ誰も書いていない記事を書く", "新しい技術の中身を一人で深く掘るタイプ。ソースコードを読み、検証し、誰よりも早く本質を理解します。", ["技術の深い理解", "検証の速さ", "情報発信"], ["業務の優先度とずれやすい", "成果が周囲に伝わりにくい"]],
+  ESAR: ["深夜のデバッガー", "その不具合、たぶんもう原因わかってます", "既存システムの奥底に潜って問題を解くタイプ。仮説を立てては試し、誰も直せなかったバグを一人で仕留めます。", ["トラブルシュート力", "既存コードの読解", "粘り強さ"], ["暗黙知が属人化しやすい", "一人で抱え込みがち"]],
+  ESTN: ["R&Dリード", "次の技術を、チームの武器にする", "新技術をチームで検証し、プロダクトに持ち込む道筋を作るタイプ。PoCを回しながら学びを共有し、組織の技術力を引き上げます。", ["技術ビジョン", "検証の設計", "ナレッジ共有"], ["本番投入までの詰めが長引く", "実験の数が増えすぎる"]],
+  ESTR: ["火消しSRE", "障害対応のときほど、落ち着いている", "障害やトラブルにチームで素早く向き合うタイプ。実績ある手法で状況を切り分け、復旧まで現場を引っ張ります。", ["インシデント対応", "冷静な切り分け", "チームでの連携"], ["平時の改善が後回しになりやすい", "負荷が自分に集中しがち"]],
+  PUAN: ["コンセプトアーキテクト", "未来の使い心地から逆算して設計する", "新しい技術でどんな体験が作れるかを考え抜いてから組み立てるタイプ。設計の美しさとユーザー体験の両方にこだわります。", ["体験設計", "新技術の活かし方", "一貫した設計"], ["考える時間が長くなりがち", "完璧を求めて出すのが遅れる"]],
+  PUAR: ["堅実なフルスタック職人", "画面からDBまで、ちゃんと作る", "要件を丁寧に読み解き、信頼できる技術で端から端まで作り切るタイプ。見えない部分まで手を抜かない仕事ぶりが評価されます。", ["品質の安定感", "広い守備範囲", "要件の読解力"], ["新しい手法を試す機会が少ない", "一人で抱えすぎる"]],
+  PUTN: ["プロダクト型テックリード", "何を作るかと、どう作るかの両方を語れる", "プロダクトの方向性と新しい技術戦略をつなげ、チームを導くタイプ。設計レビューやロードマップ作りで力を発揮します。", ["技術と事業の橋渡し", "設計レビュー", "チームの方向づけ"], ["手を動かす時間が減りがち", "理想と現実のギャップに悩む"]],
+  PUTR: ["仕様の守り人", "決めたことを、全員が同じ理解で作れるように", "仕様やテストを整え、チームが迷わず作れる土台を作るタイプ。ユーザーに届く品質を、仕組みで守ります。", ["ドキュメント力", "品質保証", "合意形成"], ["変化への対応が慎重すぎる", "調整役に回りすぎる"]],
+  PSAN: ["理論派ハッカー", "論文を読んで、自分で実装してみる", "新しい理論や技術を体系的に理解し、自分の手で再現するタイプ。言語処理系やアルゴリズムなど、深い領域を好みます。", ["抽象化の力", "体系的な学習", "難問への耐性"], ["実用性より興味を優先しがち", "説明が難しくなりやすい"]],
+  PSAR: ["寡黙なインフラ職人", "何も起きないことが、最高の成果", "枯れた技術を正しく組み合わせ、止まらないシステムを一人で設計するタイプ。目立たないけれど、全員がその上で仕事をしています。", ["信頼性設計", "運用の自動化", "地道な改善"], ["成果が見えにくい", "変更に慎重になりすぎる"]],
+  PSTN: ["次世代基盤アーキテクト", "5年後も困らない土台を、今つくる", "新しい技術で大規模な基盤を設計し、チームで移行を進めるタイプ。長期の視点で技術負債を解消していきます。", ["大規模設計", "移行計画", "長期視点"], ["計画が大きくなりすぎる", "現場の短期ニーズを見落としがち"]],
+  PSTR: ["大規模システムの番人", "止められないシステムを、止めずに変える", "実績ある技術と丁寧なプロセスで、巨大なシステムをチームで守り育てるタイプ。レビューと手順の整備で事故を未然に防ぎます。", ["リスク管理", "レビュー文化づくり", "安定運用"], ["スピードが落ちやすい", "新しい挑戦に慎重すぎる"]],
+};
+
+// 相性: 進め方と関心が反対、働き方と技術観は同じ（補い合う組み合わせ）
+const flip = (c, i) => { const ax = AX[i]; return c[i] === ax.a ? ax.b : ax.a; };
+const partner = c => flip(c, 0) + flip(c, 1) + c[2] + c[3];
+const rival = c => c[0] + c[1] + flip(c, 2) + flip(c, 3);
+
+const stage = document.getElementById("stage");
+const bar = document.getElementById("bar");
+const status = document.getElementById("status");
+const grid = document.getElementById("grid");
+let answers = [];
+let idx = 0;
+let mine = null;
+
+function store(k, v) { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+function esc(s) { return s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]); }
+
+function renderStart() {
+  bar.style.width = "0%";
+  status.textContent = "~/diagnosis $ ready";
+  const last = load("et-last");
+  stage.innerHTML = `
+    <div class="start">
+      <div class="prompt">$ <b>./diagnose</b> --questions 12</div>
+      <h2 style="font-size:clamp(22px,4vw,30px)">所要時間は約2分です</h2>
+      <p>各軸3問ずつ、合計12問。直感で答えるほうが当たります。</p>
+      <div class="actions">
+        <button class="btn" id="go">診断をはじめる</button>
+        ${last && T[last] ? `<button class="btn ghost" id="prev">前回の結果を見る（${last}）</button>` : ""}
+      </div>
+    </div>`;
+  document.getElementById("go").onclick = () => { answers = []; idx = 0; renderQ(); };
+  const p = document.getElementById("prev");
+  if (p) p.onclick = () => { const s = JSON.parse(load("et-scores") || "null"); renderResult(last, s); };
+}
+
+function renderQ() {
+  const q = QS[idx];
+  const ax = AX[q.x];
+  bar.style.width = (idx / QS.length * 100) + "%";
+  status.textContent = `~/diagnosis $ q${String(idx + 1).padStart(2, "0")}/${QS.length}`;
+  const picked = answers[idx];
+  stage.innerHTML = `
+    <div class="q-num">Q${idx + 1} / ${QS.length} · AXIS ${q.x + 1}</div>
+    <p class="q-text">${esc(q.q)}</p>
+    <div class="choices">
+      <button class="choice ${picked === "a" ? "picked" : ""}" id="ca"><span class="tag">A</span>${esc(q.a)}</button>
+      <button class="choice ${picked === "b" ? "picked" : ""}" id="cb"><span class="tag">B</span>${esc(q.b)}</button>
+    </div>
+    <div class="q-foot">
+      <button class="btn ghost" id="back" ${idx === 0 ? "" : ""}>${idx === 0 ? "最初に戻る" : "ひとつ前へ"}</button>
+      <span class="mono" style="font-size:13px;color:var(--muted)">キーボード: A / B</span>
+    </div>`;
+  document.getElementById("ca").onclick = () => pick("a");
+  document.getElementById("cb").onclick = () => pick("b");
+  document.getElementById("back").onclick = () => { if (idx === 0) renderStart(); else { idx--; renderQ(); } };
+  document.getElementById(picked === "b" ? "cb" : "ca").focus({ preventScroll: true });
+}
+
+function pick(v) {
+  answers[idx] = v;
+  if (idx < QS.length - 1) { idx++; renderQ(); }
+  else finish();
+}
+
+function finish() {
+  const scores = AX.map((_, i) => {
+    const qs = QS.map((q, j) => [q, j]).filter(([q]) => q.x === i);
+    const a = qs.filter(([, j]) => answers[j] === "a").length;
+    return Math.round(a / qs.length * 100);
+  });
+  const code = AX.map((ax, i) => scores[i] >= 50 ? ax.a : ax.b).join("");
+  store("et-last", code);
+  store("et-scores", JSON.stringify(scores));
+  renderResult(code, scores);
+}
+
+function renderResult(code, scores) {
+  mine = code;
+  const t = T[code];
+  bar.style.width = scores ? "100%" : "0%";
+  status.textContent = scores ? `~/diagnosis $ done → ${code}` : `~/types $ cat ${code}`;
+  const bars = scores ? `<div class="bars" aria-label="軸ごとの傾向">${AX.map((ax, i) => {
+    const s = scores[i], aOn = s >= 50;
+    return `<div class="bar-row">
+      <span class="l ${aOn ? "on" : "off"}"><span class="mono">${ax.a}</span> ${ax.an} ${s}%</span>
+      <div class="track"><div style="width:${s}%"></div></div>
+      <span class="${aOn ? "off" : "on"}">${100 - s}% ${ax.bn} <span class="mono">${ax.b}</span></span>
+    </div>`;
+  }).join("")}</div>` : `<div class="bars" aria-label="タイプの構成">${AX.map((ax, i) => {
+    const aOn = code[i] === ax.a;
+    return `<div class="bar-row">
+      <span class="l ${aOn ? "on" : "off"}"><span class="mono">${ax.a}</span> ${ax.an}</span>
+      <div class="track"><div style="width:${aOn ? 75 : 25}%"></div></div>
+      <span class="${aOn ? "off" : "on"}">${ax.bn} <span class="mono">${ax.b}</span></span>
+    </div>`;
+  }).join("")}</div>`;
+  const shareTxt = `私のエンジニアタイプは【${code}｜${t[0]}】でした。「${t[1]}」 #エンジニアタイプ診断`;
+  const p = partner(code), r = rival(code);
+  stage.innerHTML = `
+    <div class="result">
+      <div class="r-top">
+        <div class="eyebrow">${scores ? "あなたのタイプ" : "タイプ詳細"}</div>
+        <div class="r-code">${code}</div>
+        <h2 class="r-name">${esc(t[0])}</h2>
+        <p class="r-tag">「${esc(t[1])}」</p>
+      </div>
+      ${bars}
+      <p class="r-desc">${esc(t[2])}</p>
+      <div class="cols">
+        <div class="box good"><h3>STRENGTHS</h3><ul>${t[3].map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
+        <div class="box warn"><h3>WATCH OUT</h3><ul>${t[4].map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
+      </div>
+      <div class="match">補い合える相棒 <button class="chip" data-c="${p}">${p}</button> ${esc(T[p][0])}</div>
+      <div class="match">刺激をくれるライバル <button class="chip" data-c="${r}">${r}</button> ${esc(T[r][0])}</div>
+      ${scores ? `<textarea class="share-text" id="share" rows="2" readonly>${esc(shareTxt)}</textarea>` : ""}
+      <div class="actions">
+        ${scores ? `<button class="btn" id="copy">結果をコピー</button>` : ""}
+        <button class="btn ${scores ? "ghost" : ""}" id="again">${scores ? "もう一度診断する" : "自分のタイプを診断する"}</button>
+        <span class="copied" id="copied" hidden>コピーしました</span>
+      </div>
+    </div>`;
+  stage.querySelectorAll(".chip").forEach(b => b.onclick = () => showType(b.dataset.c));
+  document.getElementById("again").onclick = () => { answers = []; idx = 0; renderQ(); };
+  const c = document.getElementById("copy");
+  if (c) c.onclick = () => {
+    const ta = document.getElementById("share");
+    const ok = () => { document.getElementById("copied").hidden = false; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareTxt).then(ok).catch(() => { ta.select(); });
+    } else { ta.select(); }
+  };
+  renderGrid();
+}
+
+function showType(code) {
+  renderResult(code, null);
+  stage.closest(".panel").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+function renderGrid() {
+  const mineCode = load("et-last");
+  const groups = [["EU", "探索 × ユーザー"], ["ES", "探索 × システム"], ["PU", "設計 × ユーザー"], ["PS", "設計 × システム"]];
+  grid.innerHTML = groups.map(([g, label]) =>
+    `<div class="group-label">${g}·· ${label}</div>` +
+    Object.keys(T).filter(k => k.startsWith(g)).map(k =>
+      `<button class="tcard ${k === mineCode ? "mine" : ""}" data-c="${k}"><span class="c">${k}</span><span class="n">${esc(T[k][0])}</span></button>`
+    ).join("")
+  ).join("");
+  grid.querySelectorAll(".tcard").forEach(b => b.onclick = () => showType(b.dataset.c));
+}
+
+document.addEventListener("keydown", e => {
+  if (!document.getElementById("ca")) return;
+  if (e.target.tagName === "TEXTAREA") return;
+  const k = e.key.toLowerCase();
+  if (k === "a" || k === "1") pick("a");
+  if (k === "b" || k === "2") pick("b");
+});
+
+renderStart();
+renderGrid();
+</script>
+</body>
+</html>
